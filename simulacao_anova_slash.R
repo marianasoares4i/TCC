@@ -506,7 +506,7 @@ n<-10
 Claims <- data.frame(originf = factor(rep(1981:1990, 10:1)),
                      dev=sequence(n:1),
                      inc.paid=c(3488 ,11071 ,12690 ,10730, 11582 ,6396 ,2449, 2456, 2418, 584,
-                                169 ,11612 , 7769, 10997, 11261, 4577 ,2866,  727 , 294 ,
+                                1169 ,11612 , 7769, 10997, 11261, 4577 ,2866,  727 , 294 ,
                                 1478  ,9310 ,14711 , 8780 , 8778 ,6303 ,2969 , 215,
                                 1186, 10666, 11061 , 9624 , 9287, 6181, 4537 ,
                                 1737 ,12144 ,11640 ,12516 , 5647, 4071,
@@ -663,3 +663,334 @@ coefs <-apply(resultado, 2, quantile)
 View(coefs)
 
 saveRDS(anova_slash,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_cote_anova_slash.rds")
+
+
+#### MODELO ANOVA ERRO SLASH DADOS MOTOR ####
+n<-10
+Claims <- data.frame(originf = factor(rep(1981:1990, 10:1)),
+                     dev=sequence(n:1),
+                     inc.paid=c( 33810,45318,46549,35206,23360,12502,6602,3373,2373,778,
+                                 37663,51771,40998,29496,12669,11204,5785,4220,1910,
+                                 40630,56318,56182,32473,15828,8409,7120,1125,
+                                 40475,49697,39313,24044,13156,12595,2908,
+                                 37127,50983,34154,25455,19421,5728,
+                                 41125,53302,40289,39912,6650,
+                                 57515,67881,86734,18109,
+                                 61553,132208,20923,
+                                 112103,33250,
+                                 37554))
+
+
+## triangulo de run-off
+inc.triangle <- with(Claims, {
+  M <- matrix(nrow=n, ncol=n,
+              dimnames=list(origin=levels(originf), dev=1:n))
+  M[cbind(originf, dev)] <- inc.paid
+  M})
+
+diag1<-c()
+m<-10
+for (i in 1:10) {
+  diag1[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+m<-9
+diag2<-c()
+for (i in 1:9) {
+  diag2[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+## NOVO TRIANGULO SERA 8X8
+n <- 8
+inc.triangle <- inc.triangle[1:n,1:n]
+
+Claims <- data.frame(originf = factor(rep(1:n, n:1)),
+                     dev=sequence(n:1),
+                     inc.paid= (na.omit(as.vector(t(inc.triangle)))))
+## triangulo acumulado
+cum.triangle <- t(apply(inc.triangle, 1, cumsum))
+## pegando os dados da diagonal principal que sao as ultimas obs do triangulo acumulado
+latest.paid <- cum.triangle[row(cum.triangle) == n - col(cum.triangle) + 1]
+
+## adicionando os valores acumulados nos dados
+Claims$cum.paid <- cum.triangle[with(Claims, cbind(originf, dev))]
+
+## usava isso em outros modelos ver se posso exluir
+names(Claims)[3:4] <- c("inc.paid.k", "cum.paid.k")
+ids <- with(Claims, cbind(originf, dev))
+Claims <- within(Claims,{
+  cum.paid.kp1 <- cbind(cum.triangle[,-1], NA)[ids]
+  inc.paid.kp1 <- cbind(inc.triangle[,-1], NA)[ids]
+  devf <- factor(dev)
+}
+)
+
+## fatores de desenvolvimento
+f <- sapply((n-1):1, function(i) {
+  sum( cum.triangle[1:i, n-i+1] ) / sum( cum.triangle[1:i, n-i] )
+})
+
+## adicionando 1 para estimar o triangulo completo acumulado
+tail <- 1
+(f <- c(f, tail))
+
+full.triangle <- cum.triangle
+for(k in 1:(n-1)){
+  full.triangle[(n-k+1):n, k+1] <- full.triangle[(n-k+1):n,k]*f[k]
+}
+full.triangle
+
+## pegando os ultimos valores do triangulo acumulado completo 
+(ultimate.paid <- full.triangle[,n])
+## subtrai o valor acumulado final do valor acumulado do triangulo de vdd 
+## tem o valor da reserva
+sum(ultimate.paid - latest.paid)
+
+
+###### DADOS PARA FAZER PREVISAO ######
+dados_prev<-matrix(1,nrow=8,ncol=8)
+
+# zerando o que esta abaixo da diagonal principal que e conhecido
+dados_prev[row(dados_prev) <= n - col(dados_prev) + 1]<-NA
+
+allClaims <- data.frame(originf =factor(sort(rep(1:8, 8))),
+                        dev=rep(1:8,8),
+                        inc.paid= as.vector(t(dados_prev)))
+allClaims<-allClaims %>% na.omit()
+allClaims$dev<-as.factor(allClaims$dev)
+allClaims$originf<-as.factor(allClaims$originf)
+X_b_prev <- as.data.frame(model.matrix(~ dev, data=allClaims,
+                                       contrasts.arg = list(dev = contrasts(allClaims$dev, contrasts = FALSE))))[,-1]
+X_b_prev<-cbind(0,X_b_prev)
+## alfa das linhas
+X_a_prev<-as.data.frame( model.matrix(~originf, data=allClaims,
+                                      contrasts.arg = list(originf = contrasts(allClaims$originf, contrasts = FALSE))))[,-1]
+
+## infos para o modelo
+K_prev<- ncol(X_b_prev)
+N_prev<- nrow(X_b_prev)
+
+##### MODELO LOG ANOVA ERRO SLASH #####
+Claims$logClaims<-log(Claims$inc.paid.k)
+Claims$dev<-as.factor(Claims$dev)
+
+## teste que eu estava fazendo apagar depois
+anov<-lm(Claims$logClaims~dev+originf, data=Claims,contrasts=list(originf="contr.sum",dev="contr.sum"))
+summary(anov)
+
+## Model matrix com todos os coeficientes
+## beta das colunas
+X_b <- as.data.frame(model.matrix(~ dev, data=Claims,
+                                  contrasts.arg = list(dev = contrasts(Claims$dev, contrasts = FALSE))))[,-1]
+
+## alfa das linhas
+X_a<-as.data.frame( model.matrix(~originf, data=Claims,
+                                 contrasts.arg = list(originf = contrasts(Claims$originf, contrasts = FALSE))))[,-1]
+X_a <- X_a[,-c(9,10)]
+## infos para o modelo
+Y <- Claims$logClaims
+K<- ncol(X_b)
+N<- nrow(X_b)
+
+anova_slash <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/anova_slash_choy.stan",
+                    data=list(X_alpha=X_a,X_beta=X_b,Y=Y,K_alpha=K,K_beta=K,N=N,X_alpha_prev=X_a_prev,
+                              X_beta_prev=X_b_prev, K_alpha_prev=K_prev,N_prev=N_prev,K_beta_prev=K_prev),
+                    warmup=10000,iter=40000,thin=50,chains=2, control=list(adapt_delta=0.99),
+                    cores = getOption("mc.cores", 2))  
+
+
+teste<-extract(anova_slash)$log_lik
+soma<-apply(teste,MARGIN=1,FUN=sum)
+# lppd <-sum(log(colMeans(exp(log_lik))))
+lppd <-sum(log(mean(exp(soma))))
+p_waic <- sum(stats::var(soma))
+waic <- -2*lppd +2*p_waic
+
+waic(extract(anova_slash)$log_lik)
+
+traceplot(anova_slash,pars=c("ni","sigma2","alpha","beta"))
+traceplot(anova_slash,pars="sigma2")
+traceplot(anova_slash,pars="ni")
+lambda_prev<-extract(anova_slash)$lambda_prev
+reserva<-(extract(anova_slash)$reserva)
+zij_prev<-apply((extract(anova_slash)$zij),2,median)
+quantile(reserva,probs=c(0.025,0.5,0.975))
+View(summary(anova_slash))
+resultado<-as.matrix(anova_slash)
+lambda_prev<-apply(lambda_prev, 2, median) # e 1 ou 2 ?
+coefs <-apply(resultado, 2, median)
+coefs <-apply(resultado, 2, quantile)
+View(coefs)
+
+saveRDS(anova_slash,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_cote_anova_slash.rds")
+
+
+#### MODELO ANOVA ERRO SLASH DADOS SOA ####
+n<-12
+Claims <- data.frame(originf = factor(rep(1:12, 12:1)),
+                     dev=sequence(n:1),
+                     inc.paid= c(1750,2500,1050,700,125,70,35,25,15,30,5,0,
+                                 1500,2750,1550,725,100,75,30,10,25,25,5,
+                                 1600,2800,1650,675,125,50,25,40,20,10,
+                                 1125,2650,1550,740,70,45,55,15,5,
+                                 1900,2200,1475,650,60,60,40,15,
+                                 1500,2600,1350,650,100,60,30,
+                                 2000,1950,1570,750,90,60,
+                                 1700,2300,1650,700,115,
+                                 1400,2900,1440,725,
+                                 2225,2400,1525,
+                                 1700,1950,
+                                 1575))
+
+
+
+## triangulo de run-off
+inc.triangle <- with(Claims, {
+  M <- matrix(nrow=n, ncol=n,
+              dimnames=list(origin=levels(originf), dev=1:n))
+  M[cbind(originf, dev)] <- inc.paid
+  M})
+
+diag1<-c()
+m<-12
+for (i in 1:12) {
+  diag1[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+m<-11
+diag2<-c()
+for (i in 1:11) {
+  diag2[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+## NOVO TRIANGULO SERA 8X8
+n <- 10
+inc.triangle <- inc.triangle[1:n,1:n]
+
+Claims <- data.frame(originf = factor(rep(1:n, n:1)),
+                     dev=sequence(n:1),
+                     inc.paid= (na.omit(as.vector(t(inc.triangle)))))
+## triangulo acumulado
+cum.triangle <- t(apply(inc.triangle, 1, cumsum))
+## pegando os dados da diagonal principal que sao as ultimas obs do triangulo acumulado
+latest.paid <- cum.triangle[row(cum.triangle) == n - col(cum.triangle) + 1]
+
+## adicionando os valores acumulados nos dados
+Claims$cum.paid <- cum.triangle[with(Claims, cbind(originf, dev))]
+
+## usava isso em outros modelos ver se posso exluir
+names(Claims)[3:4] <- c("inc.paid.k", "cum.paid.k")
+ids <- with(Claims, cbind(originf, dev))
+Claims <- within(Claims,{
+  cum.paid.kp1 <- cbind(cum.triangle[,-1], NA)[ids]
+  inc.paid.kp1 <- cbind(inc.triangle[,-1], NA)[ids]
+  devf <- factor(dev)
+}
+)
+
+## fatores de desenvolvimento
+f <- sapply((n-1):1, function(i) {
+  sum( cum.triangle[1:i, n-i+1] ) / sum( cum.triangle[1:i, n-i] )
+})
+
+## adicionando 1 para estimar o triangulo completo acumulado
+tail <- 1
+(f <- c(f, tail))
+
+full.triangle <- cum.triangle
+for(k in 1:(n-1)){
+  full.triangle[(n-k+1):n, k+1] <- full.triangle[(n-k+1):n,k]*f[k]
+}
+full.triangle
+
+## pegando os ultimos valores do triangulo acumulado completo 
+(ultimate.paid <- full.triangle[,n])
+## subtrai o valor acumulado final do valor acumulado do triangulo de vdd 
+## tem o valor da reserva
+sum(ultimate.paid - latest.paid)
+
+
+###### DADOS PARA FAZER PREVISAO ######
+dados_prev<-matrix(1,nrow=10,ncol=10)
+
+# zerando o que esta abaixo da diagonal principal que e conhecido
+dados_prev[row(dados_prev) <= n - col(dados_prev) + 1]<-NA
+
+allClaims <- data.frame(originf =factor(sort(rep(1:10, 10))),
+                        dev=rep(1:10,10),
+                        inc.paid= as.vector(t(dados_prev)))
+allClaims<-allClaims %>% na.omit()
+allClaims$dev<-as.factor(allClaims$dev)
+allClaims$originf<-as.factor(allClaims$originf)
+X_b_prev <- as.data.frame(model.matrix(~ dev, data=allClaims,
+                                       contrasts.arg = list(dev = contrasts(allClaims$dev, contrasts = FALSE))))[,-1]
+X_b_prev<-cbind(0,X_b_prev)
+## alfa das linhas
+X_a_prev<-as.data.frame( model.matrix(~originf, data=allClaims,
+                                      contrasts.arg = list(originf = contrasts(allClaims$originf, contrasts = FALSE))))[,-1]
+
+## infos para o modelo
+K_prev<- ncol(X_b_prev)
+N_prev<- nrow(X_b_prev)
+
+##### MODELO LOG ANOVA ERRO SLASH #####
+Claims$logClaims<-log(Claims$inc.paid.k)
+Claims$dev<-as.factor(Claims$dev)
+
+## teste que eu estava fazendo apagar depois
+anov<-lm(Claims$logClaims~dev+originf, data=Claims,contrasts=list(originf="contr.sum",dev="contr.sum"))
+summary(anov)
+
+## Model matrix com todos os coeficientes
+## beta das colunas
+X_b <- as.data.frame(model.matrix(~ dev, data=Claims,
+                                  contrasts.arg = list(dev = contrasts(Claims$dev, contrasts = FALSE))))[,-1]
+
+## alfa das linhas
+X_a<-as.data.frame( model.matrix(~originf, data=Claims,
+                                 contrasts.arg = list(originf = contrasts(Claims$originf, contrasts = FALSE))))[,-1]
+# X_a <- X_a[,-c(9,10)]
+## infos para o modelo
+Y <- Claims$logClaims
+K<- ncol(X_b)
+N<- nrow(X_b)
+
+anova_slash <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/anova_slash_choy.stan",
+                    data=list(X_alpha=X_a,X_beta=X_b,Y=Y,K_alpha=K,K_beta=K,N=N,X_alpha_prev=X_a_prev,
+                              X_beta_prev=X_b_prev, K_alpha_prev=K_prev,N_prev=N_prev,K_beta_prev=K_prev),
+                    warmup=10000,iter=40000,thin=50,chains=2, control=list(adapt_delta=0.99),
+                    cores = getOption("mc.cores", 2))  
+
+
+teste<-extract(anova_slash)$log_lik
+soma<-apply(teste,MARGIN=1,FUN=sum)
+# lppd <-sum(log(colMeans(exp(log_lik))))
+lppd <-sum(log(mean(exp(soma))))
+p_waic <- sum(stats::var(soma))
+waic <- -2*lppd +2*p_waic
+
+waic(extract(anova_slash)$log_lik)
+
+traceplot(anova_slash,pars=c("ni","sigma2","alpha","beta"))
+traceplot(anova_slash,pars="sigma2")
+traceplot(anova_slash,pars="ni")
+lambda_prev<-extract(anova_slash)$lambda_prev
+reserva<-(extract(anova_slash)$reserva)
+zij_prev<-apply((extract(anova_slash)$zij),2,median)
+quantile(reserva,probs=c(0.025,0.5,0.975))
+View(summary(anova_slash))
+resultado<-as.matrix(anova_slash)
+lambda_prev<-apply(lambda_prev, 2, median) # e 1 ou 2 ?
+coefs <-apply(resultado, 2, median)
+coefs <-apply(resultado, 2, quantile)
+View(coefs)
+
+saveRDS(anova_slash,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_soa_anova_slash.rds")

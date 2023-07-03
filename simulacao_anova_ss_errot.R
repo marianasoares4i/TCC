@@ -484,7 +484,7 @@ n<-10
 Claims <- data.frame(originf = factor(rep(1981:1990, 10:1)),
                      dev=sequence(n:1),
                      inc.paid=c(3488 ,11071 ,12690 ,10730, 11582 ,6396 ,2449, 2456, 2418, 584,
-                                169 ,11612 , 7769, 10997, 11261, 4577 ,2866,  727 , 294 ,
+                                1169 ,11612 , 7769, 10997, 11261, 4577 ,2866,  727 , 294 ,
                                 1478  ,9310 ,14711 , 8780 , 8778 ,6303 ,2969 , 215,
                                 1186, 10666, 11061 , 9624 , 9287, 6181, 4537 ,
                                 1737 ,12144 ,11640 ,12516 , 5647, 4071,
@@ -632,3 +632,161 @@ quantile((res))
 
 ## SALVANDO RESULTADO DO MODELO 
 saveRDS(anova_errot_ss,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_t/result_cote_ss_errot.rds")
+
+
+#### MODELO ANOVA SS ERRO T DADOS SOA ####
+n<-12
+Claims <- data.frame(originf = factor(rep(1:12, 12:1)),
+                     dev=sequence(n:1),
+                     inc.paid= c(1750,2500,1050,700,125,70,35,25,15,30,5,0,
+                                 1500,2750,1550,725,100,75,30,10,25,25,5,
+                                 1600,2800,1650,675,125,50,25,40,20,10,
+                                 1125,2650,1550,740,70,45,55,15,5,
+                                 1900,2200,1475,650,60,60,40,15,
+                                 1500,2600,1350,650,100,60,30,
+                                 2000,1950,1570,750,90,60,
+                                 1700,2300,1650,700,115,
+                                 1400,2900,1440,725,
+                                 2225,2400,1525,
+                                 1700,1950,
+                                 1575))
+
+
+
+## triangulo de run-off
+inc.triangle <- with(Claims, {
+  M <- matrix(nrow=n, ncol=n,
+              dimnames=list(origin=levels(originf), dev=1:n))
+  M[cbind(originf, dev)] <- inc.paid
+  M})
+
+diag1<-c()
+m<-12
+for (i in 1:12) {
+  diag1[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+m<-11
+diag2<-c()
+for (i in 1:11) {
+  diag2[i]<-inc.triangle[i,m]
+  inc.triangle[i,m] <-NA
+  m<-m-1
+}
+
+## NOVO TRIANGULO SERA 8X8
+n <- 10
+inc.triangle <- inc.triangle[1:n,1:n]
+
+
+Claims <- data.frame(originf = factor(rep(1:n, n:1)),
+                     dev=sequence(n:1),
+                     inc.paid= (na.omit(as.vector(t(inc.triangle)))))
+
+## triangulo acumulado
+cum.triangle <- t(apply(inc.triangle, 1, cumsum))
+
+## pegando os dados da diagonal principal que sao as ultimas obs do triangulo acumulado
+latest.paid <- cum.triangle[row(cum.triangle) == n - col(cum.triangle) + 1]
+
+## adicionando os valores acumulados nos dados
+Claims$cum.paid <- cum.triangle[with(Claims, cbind(originf, dev))]
+
+## usava isso em outros modelos ver se posso exluir
+names(Claims)[3:4] <- c("inc.paid.k", "cum.paid.k")
+ids <- with(Claims, cbind(originf, dev))
+Claims <- within(Claims,{
+  cum.paid.kp1 <- cbind(cum.triangle[,-1], NA)[ids]
+  inc.paid.kp1 <- cbind(inc.triangle[,-1], NA)[ids]
+  devf <- factor(dev)
+}
+)
+
+## fatores de desenvolvimento
+f <- sapply((n-1):1, function(i) {
+  sum( cum.triangle[1:i, n-i+1] ) / sum( cum.triangle[1:i, n-i] )
+})
+
+## adicionando 1 para estimar o triangulo completo acumulado
+tail <- 1
+(f <- c(f, tail))
+
+full.triangle <- cum.triangle
+for(k in 1:(n-1)){
+  full.triangle[(n-k+1):n, k+1] <- full.triangle[(n-k+1):n,k]*f[k]
+}
+full.triangle
+
+## pegando os ultimos valores do triangulo acumulado completo 
+(ultimate.paid <- full.triangle[,n])
+## subtrai o valor acumulado final do valor acumulado do triangulo de vdd 
+## tem o valor da reserva
+sum(ultimate.paid - latest.paid)
+
+##### DADOS PARA FAZER PREVISAO #####
+## gerando matrix com dados para previsao
+dados_prev<-matrix(1,nrow=10,ncol=10)
+
+# zerando o que esta abaixo da diagonal principal que e conhecido
+dados_prev[row(dados_prev) <= n - col(dados_prev) + 1]<-NA
+dados_prev
+
+### colocando no formato padrao do livro para fazer o modelo
+
+allClaims <- data.frame(originf =factor(sort(rep(1:10, 10))),
+                        dev=rep(1:10,10),
+                        inc.paid= as.vector(t(dados_prev)))
+## remove na
+allClaims<-allClaims %>% na.omit()
+
+
+
+#### MODELO SS LOG ANOVA BAYESIANO ERRO T DADOS VERRAL ####
+## PASSANDO LOG NOS PAGAMENTOS
+Claims$logClaims<-log(Claims$inc.paid.k)
+
+## LISTA COM OS DADOS QUE SERAO USADOS NO MODELO
+data_list <- list(n = length((Claims$inc.paid.k)),
+                  n_prev = length(allClaims$inc.paid),
+                  m = 10,
+                  p = 10,
+                  t = as.integer(Claims$originf),
+                  h =as.integer(Claims$dev) ,
+                  t_prev = as.integer(allClaims$originf),
+                  h_prev =as.integer(allClaims$dev) ,
+                  #id_time = as.matrix(id_time),
+                  y = Claims$logClaims)
+
+## rodando o modelo no stan
+anova_errot_ss <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_errot.stan",
+                       data=data_list,
+                       warmup=150000,iter=300000,thin=50,
+                       chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))  
+
+## ANALISE BASICA  PARA VER CONVERGENCIA E VALORES DOS PARAMETROS
+summary(anova_errot_ss)
+resultado<-as.matrix(anova_errot_ss)
+coefs <-apply(resultado, 2, median)
+coefs <-apply(resultado, 2, quantile, probs=c(0.025,0.5,0.975))
+traceplot(anova_errot_ss,pars=c("u","sigma_u","ni"))
+traceplot(anova_errot_ss,pars=c("sigma_beta","sigma_u","sigma_alpha"))
+
+teste<-extract(anova_errot_ss)$log_lik
+soma<-apply(teste,MARGIN=1,FUN=sum)
+# lppd <-sum(log(colMeans(exp(log_lik))))
+lppd <-sum(log(mean(exp(soma))))
+p_waic <- sum(stats::var(soma))
+waic <- -2*lppd +2*p_waic
+waic(extract(anova_errot_ss)$log_lik)
+
+res<-extract(anova_errot_ss)$reserva
+y_pre<-extract(anova_errot_ss)$y_pred
+y_pred2 <-apply(y_pre, 2, median)
+y_new<-extract(anova_errot_ss)$zij
+y_new2 <-apply(y_new, 2, median)
+quantile((res))
+
+## SALVANDO RESULTADO DO MODELO 
+saveRDS(anova_errot_ss,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_t/result_soa_ss_errot.rds")
