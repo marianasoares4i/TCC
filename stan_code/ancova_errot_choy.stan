@@ -1,4 +1,3 @@
-// generated with brms 2.18.0
 functions {
 }
 data {
@@ -18,8 +17,8 @@ transformed data {
 parameters {
   real alpha;  // efeitos de alpha
   vector[K_beta-1] b; // efeitos de beta
-  real mu;  // temporary intercept for centered predictors
-  real<lower=0> sigma2;  // dispersion parameter
+  real mu;  
+  real<lower=0> sigma2;  
   vector<lower=0>[N] lambda;
   real <lower=0> ni;
 }
@@ -43,12 +42,8 @@ transformed parameters {
 }
 model {
   // likelihood including constants
-  //target +=gamma_lpdf(lambda|ni/2,ni/2);
   target += gamma_lpdf(ni|12,0.8);
   target += normal_lpdf(Y | muij, lambda2);
-  //lambda~gamma(ni/2,ni/2);
-  
-  //Y~normal(muij,lambda2);
   
   // priors including constants
   target += lprior;

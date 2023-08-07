@@ -317,156 +317,6 @@ waic(extract(anova_normal_ss)$log_lik)
 ## salvando resultado do modelo
 saveRDS(anova_normal_ss,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_normal/result_choy_ss_normal.rds")
 
-#### MODELO ANOVA SS ERRO NORMAL DADOS VERRAL ####
-n<-10
-## dados verral
-Claims <- data.frame(originf = factor(rep(1:10, 10:1)),
-                     dev=sequence(n:1),
-                     inc.paid= c(357848,766940,610542,482940,527326,574398,
-                                 146342,139950,227229,67948,
-                                 352118,884021,933894,1183289,445745,320996,
-                                 527804,266172,425046,290507,1001799,926219,1016654,
-                                 750816,146923,495992,280405,310608,1108250,776189,1562400,
-                                 272482,352053,206286,443160,693190,991983,769488,504851,
-                                 470639,396132,937085,847498,805037,705960,
-                                 440832,847631,1131398,1063269,359480,1061648,1443370,
-                                 376686,986608,344014))
-
-## triangulo de run-off
-inc.triangle <- with(Claims, {
-  M <- matrix(nrow=n, ncol=n,
-              dimnames=list(origin=levels(originf), dev=1:n))
-  M[cbind(originf, dev)] <- inc.paid
-  M})
-
-##  REMOVENDO DUAS DIAGONAIS PARA USAR COMO CONJUNTO DE VALIDACAO DO MODELO
-diag1<-c()
-m<-10
-for (i in 1:10) {
-  diag1[i]<-inc.triangle[i,m]
-  inc.triangle[i,m] <-NA
-  m<-m-1
-}
-
-m<-9
-diag2<-c()
-for (i in 1:9) {
-  diag2[i]<-inc.triangle[i,m]
-  inc.triangle[i,m] <-NA
-  m<-m-1
-}
-
-## NOVO TRIANGULO SERA 8X8
-n <- 8
-inc.triangle <- inc.triangle[1:n,1:n]
-
-Claims <- data.frame(originf = factor(rep(1:n, n:1)),
-                     dev=sequence(n:1),
-                     inc.paid= (na.omit(as.vector(t(inc.triangle)))))
-
-## triangulo acumulado
-cum.triangle <- t(apply(inc.triangle, 1, cumsum))
-
-## pegando os dados da diagonal principal que sao as ultimas obs do triangulo acumulado
-latest.paid <- cum.triangle[row(cum.triangle) == n - col(cum.triangle) + 1]
-
-## adicionando os valores acumulados nos dados
-Claims$cum.paid <- cum.triangle[with(Claims, cbind(originf, dev))]
-
-## usava isso em outros modelos ver se posso exluir
-names(Claims)[3:4] <- c("inc.paid.k", "cum.paid.k")
-ids <- with(Claims, cbind(originf, dev))
-Claims <- within(Claims,{
-  cum.paid.kp1 <- cbind(cum.triangle[,-1], NA)[ids]
-  inc.paid.kp1 <- cbind(inc.triangle[,-1], NA)[ids]
-  devf <- factor(dev)
-}
-)
-
-## fatores de desenvolvimento
-f <- sapply((n-1):1, function(i) {
-  sum( cum.triangle[1:i, n-i+1] ) / sum( cum.triangle[1:i, n-i] )
-})
-
-## adicionando 1 para estimar o triangulo completo acumulado
-tail <- 1
-(f <- c(f, tail))
-
-full.triangle <- cum.triangle
-for(k in 1:(n-1)){
-  full.triangle[(n-k+1):n, k+1] <- full.triangle[(n-k+1):n,k]*f[k]
-}
-full.triangle
-
-## pegando os ultimos valores do triangulo acumulado completo 
-(ultimate.paid <- full.triangle[,n])
-## subtrai o valor acumulado final do valor acumulado do triangulo de vdd 
-## tem o valor da reserva
-sum(ultimate.paid - latest.paid)
-
-##### DADOS PARA FAZER PREVISAO #####
-## gerando matrix com dados para previsao
-dados_prev<-matrix(1,nrow=8,ncol=8)
-
-# zerando o que esta abaixo da diagonal principal que e conhecido
-dados_prev[row(dados_prev) <= n - col(dados_prev) + 1]<-NA
-dados_prev
-
-### colocando no formato padrao do livro para fazer o modelo
-
-allClaims <- data.frame(originf =factor(sort(rep(1:8, 8))),
-                        dev=rep(1:8,8),
-                        inc.paid= as.vector(t(dados_prev)))
-## remove na
-allClaims<-allClaims %>% na.omit()
-
-
-#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL ####
-## PASSANDO LOG NOS PAGAMENTOS
-Claims$logClaims<-log(Claims$inc.paid.k)
-
-#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL DADOS VERRAL ####
-
-## LISTA COM OS DADOS QUE SERAO USADOS NO MODELO
-data_list <- list(n = length((Claims$inc.paid.k)),
-                  n_prev = length(allClaims$inc.paid),
-                  m = 8,
-                  p = 8,
-                  t = as.integer(Claims$originf),
-                  h =as.integer(Claims$dev) ,
-                  t_prev = as.integer(allClaims$originf),
-                  h_prev =as.integer(allClaims$dev) ,
-                  #id_time = as.matrix(id_time),
-                  y = Claims$logClaims)
-
-## rodando o modelo no stan
-anova_normal_ss <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/anova_ss_choy.stan",
-                         data=data_list,
-                         warmup=150000,iter=300000,thin=50,
-                         chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))
-
-## ANALISE BASICA  PARA VER CONVERGENCIA E VALORES DOS PARAMETROS
-summary(anova_normal_ss)
-resultado<-as.matrix(anova_normal_ss)
-y_new<-rstan::extract(anova_normal_ss)$reserva
-quantile((y_new))
-coefs <-apply(resultado, 2, median)
-coefs <-apply(resultado, 2, quantile, probs=c(0.025,0.975))
-traceplot(anova_normal_ss,pars=c("u","sigma_u"))
-traceplot(anova_normal_ss,pars=c("sigma_beta","sigma_u","sigma_alpha"))
-
-teste<-extract(anova_normal_ss)$log_lik
-soma<-apply(teste,MARGIN=1,FUN=sum)
-# lppd <-sum(log(colMeans(exp(log_lik))))
-lppd <-sum(log(mean(exp(soma))))
-p_waic <- sum(stats::var(soma))
-waic <- -2*lppd +2*p_waic
-waic(extract(anova_normal_ss)$log_lik)
-
-## SALVANDO RESULTADO DO MODELO 
-saveRDS(anova_normal_ss,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_normal/result_verral_ss_normal.rds")
-
-
 #### MODELO ANOVA SS ERRO NORMAL DADOS COTE ####
 n<-10
 Claims <- data.frame(originf = factor(rep(1981:1990, 10:1)),
@@ -576,7 +426,7 @@ allClaims<-allClaims %>% na.omit()
 ## PASSANDO LOG NOS PAGAMENTOS
 Claims$logClaims<-log(Claims$inc.paid.k)
 
-#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL DADOS VERRAL ####
+#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL DADOS COTE ####
 
 ## LISTA COM OS DADOS QUE SERAO USADOS NO MODELO
 data_list <- list(n = length((Claims$inc.paid.k)),
@@ -728,7 +578,7 @@ allClaims<-allClaims %>% na.omit()
 ## PASSANDO LOG NOS PAGAMENTOS
 Claims$logClaims<-log(Claims$inc.paid.k)
 
-#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL DADOS VERRAL ####
+#### MODELO SS LOG ANOVA BAYESIANO ERRO NORMAL DADOS SOA ####
 
 ## LISTA COM OS DADOS QUE SERAO USADOS NO MODELO
 data_list <- list(n = length((Claims$inc.paid.k)),

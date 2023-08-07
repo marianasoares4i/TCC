@@ -1,4 +1,3 @@
-// generated with brms 2.18.0
 functions {
 }
 data {
@@ -20,8 +19,8 @@ transformed data {
 parameters {
   vector[K_alpha-1] a;  // efeitos de alpha
   vector[K_beta-1] b; // efeitos de beta
-  real mu;  // temporary intercept for centered predictors
-  real<lower=0> sigma2;  // dispersion parameter
+  real mu; 
+  real<lower=0> sigma2; 
   vector<lower=0,upper=1>[N] lambda;
   real <lower=0> ni;
 }
@@ -31,11 +30,9 @@ transformed parameters {
   vector[K_beta] beta = append_row(b,-sum(b));
   vector[N] muij;
   vector<lower=0>[N] lambda2;
-  //real sigma = sqrt(1/tau);
-  //real sigma2 = sigma^2;
-  //real<lower=0> sigma;
+  
   muij=mu+X_alpha*alpha+X_beta*beta;
-  //sigma= 1/tau;
+  
   for (j in 1:N) {
     lambda2[j] = sqrt(sigma2)/(lambda[j]);
   }
@@ -46,28 +43,16 @@ transformed parameters {
   lprior += inv_gamma_lpdf(sigma2 | 0.001, 0.001);
   lprior += beta_lpdf(lambda| ni,1);
   
-  
-  //lprior += gamma_lpdf(lambda| ni/2,ni/2);
 }
 model {
   // likelihood including constants
-  //target +=gamma_lpdf(lambda|ni/2,ni/2);
   
   target += gamma_lpdf(ni|1,0.1);
   target += normal_lpdf(Y | muij, lambda2);
-  //lambda~gamma(ni/2,ni/2);
   
-  //Y~normal(muij,lambda2);
-  
-  // priors including constants
   target += lprior;
 }
-  // likelihood including constants
-  //if (!prior_only) {
-    //target += normal_id_glm_lpdf(Y | Xc, Intercept, b, sigma);
-    //target += normal_id_glm_lpdf(Y | X2, Intercept, b2, sigma2);
-  //}
-  // priors including constants
+  
 
 generated quantities {
   vector[N] log_lik;

@@ -1,26 +1,26 @@
 data {
-  int<lower=1> n; // number of observations 400
-  int<lower=1> n_prev; // number of observations 400
-  int<lower=1> m; // number of individuals 20
-  int<lower=1> p; // number of time periods 20
+  int<lower=1> n; // number of observations 
+  int<lower=1> n_prev; // number of observations forecast
+  int<lower=1> m; // number of individuals 
+  int<lower=1> p; // number of time periods 
   int<lower=1, upper=m> t[n]; // row indices
   int<lower=1, upper=p> h[n]; // column indices
-  int<lower=1, upper=m> t_prev[n_prev]; // row indices
-  int<lower=1, upper=p> h_prev[n_prev]; // column indices
+  int<lower=1, upper=m> t_prev[n_prev]; 
+  int<lower=1, upper=p> h_prev[n_prev]; 
   //matrix[n,2] id_time; // matrix of individual and time identifiers
   vector[n] y; // response variable
 }
 
 parameters {
-  real u; // common intercept
+  real u; 
   real <lower=0> ni;
-  vector[m-1] alpha; // individual-level intercepts
-  vector[m-1] beta; // individual-level slopes
+  vector[m-1] alpha; 
+  vector[m-1] beta; 
   vector<lower=0,upper=1>[n] lambda;
   row_vector[m-1] beta_line1;
-  real<lower=0> sigma_u; // standard deviation of individual-level intercepts
-  real<lower=0> sigma_alpha; // standard deviation of individual-level intercepts
-  real<lower=0> sigma_beta; // standard deviation of individual-level intercepts
+  real<lower=0> sigma_u; 
+  real<lower=0> sigma_alpha; 
+  real<lower=0> sigma_beta; 
 
 }
 
