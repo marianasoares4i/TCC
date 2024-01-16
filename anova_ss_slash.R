@@ -138,7 +138,7 @@ data_list <- list(n = length((Claims$inc.paid.k)),
                   #id_time = as.matrix(id_time),
                   y = Claims$inc.paid.k)
 ## rodando o modelo no stan
-anova_slash_gpt <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash_simulacao.stan",
+anova_slash_gpt <- stan("/home//Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash_simulacao.stan",
                         data=data_list,
                         warmup=150000,iter=300000,thin=50,
                         chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))  
@@ -160,8 +160,8 @@ quantile(ni, probs = c(0.025,0.5,0.975))
 
 ## SALVANDO OS DADOS SIMULADOS E O RESULTADO DO MODELO
 dados_simulados<- list(alpha=alpha,beta=beta,epsilon=epsilon,lambda=lambda,muij=muij,zij=zij,Claims,triangulo_completo=triangulo_completo)
-saveRDS(anova_slash_gpt,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/simulacao_anova_ss_slash.rds")
-saveRDS(dados_simulados,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/dados_simulados_anova_ss_slash.rds")
+saveRDS(anova_slash_gpt,file="/home//Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/simulacao_anova_ss_slash.rds")
+saveRDS(dados_simulados,file="/home//Pessoal/Modelos_tcc_teste_validation/dados_simulados_anova_ss_slash.rds")
 
 #### MODELO ANOVA SS ERRO SLASH DADOS CHOY ####
 n<-18
@@ -293,7 +293,7 @@ data_list <- list(n = length((Claims$inc.paid.k)),
                   y = Claims$logClaims)
 
 ## rodando o modelo no stan
-anova_slash_gpt <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
+anova_slash_gpt <- stan("/home//Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
                         data=data_list,
                         warmup=150000,iter=300000,thin=50,
                         chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))  
@@ -322,7 +322,7 @@ y_new2 <-apply(y_new, 2, median)
 quantile((res))
 
 ## salvando resultado do modelo
-saveRDS(anova_slash_gpt,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_choy_ss_slash.rds")
+saveRDS(anova_slash_gpt,file="/home//Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_choy_ss_slash.rds")
 
 #### MODELO ANOVA SS ERRO SLASH DADOS COTE ####
 n<-10
@@ -447,7 +447,7 @@ data_list <- list(n = length((Claims$inc.paid.k)),
                   y = Claims$logClaims)
 
 ## rodando o modelo no stan
-anova_slash_gpt <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
+anova_slash_gpt <- stan("/home//Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
                         data=data_list,
                         warmup=150000,iter=300000,thin=50,
                         chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))  
@@ -476,7 +476,7 @@ y_new2 <-apply(y_new, 2, median)
 quantile((res))
 
 ## SALVANDO RESULTADO DO MODELO 
-saveRDS(anova_slash_gpt,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_cote_ss_slash.rds")
+saveRDS(anova_slash_gpt,file="/home//Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_cote_ss_slash.rds")
 
 
 
@@ -605,7 +605,7 @@ data_list <- list(n = length((Claims$inc.paid.k)),
                   y = Claims$logClaims)
 
 ## rodando o modelo no stan
-anova_slash_gpt <- stan("/home/mariana/Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
+anova_slash_gpt <- stan("/home//Pessoal/Modelos_tcc_teste_validation/MODELOS USADOS/ss_anova_slash.stan",
                         data=data_list,
                         warmup=150000,iter=300000,thin=50,
                         chains=2, control=list(adapt_delta=0.99),cores = getOption("mc.cores", 2))  
@@ -634,4 +634,4 @@ y_new2 <-apply(y_new, 2, median)
 quantile((res))
 
 ## SALVANDO RESULTADO DO MODELO 
-saveRDS(anova_slash_gpt,file="/home/mariana/Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_soa_ss_slash.rds")
+saveRDS(anova_slash_gpt,file="/home//Pessoal/Modelos_tcc_teste_validation/modelos_erro_slash/result_soa_ss_slash.rds")
